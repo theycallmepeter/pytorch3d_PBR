@@ -397,6 +397,7 @@ def _bilinear_interpolation_grid_sample(
 
 MaterialProperties = Dict[str, Dict[str, torch.Tensor]]
 TextureFiles = Dict[str, str]
+NormalFiles = Dict[str, str]
 TextureImages = Dict[str, torch.Tensor]
 
 
@@ -405,6 +406,7 @@ def _parse_mtl(
 ) -> Tuple[MaterialProperties, TextureFiles]:
     material_properties = {}
     texture_files = {}
+    normal_files = {}
     material_name = ""
 
     with _open_file(f, path_manager, "r") as f:
@@ -420,6 +422,11 @@ def _parse_mtl(
                 # Account for the case where filenames might have spaces
                 filename = line.strip()[7:]
                 texture_files[material_name] = filename
+            elif tokens[0] == "map_Kn":
+                # Normal texture map
+                # Account for the case where filenames might have spaces
+                filename = line.strip()[7:]
+                normal_files[material_name] = filename
             elif tokens[0] == "Kd":
                 # RGB diffuse reflectivity
                 kd = np.array(tokens[1:4]).astype(np.float32)
@@ -441,7 +448,7 @@ def _parse_mtl(
                 ns = torch.from_numpy(ns).to(device)
                 material_properties[material_name]["shininess"] = ns
 
-    return material_properties, texture_files
+    return material_properties, texture_files, normal_files
 
 
 def _load_texture_images(
@@ -449,10 +456,12 @@ def _load_texture_images(
     data_dir: str,
     material_properties: MaterialProperties,
     texture_files: TextureFiles,
+    normal_files: NormalFiles,
     path_manager: PathManager,
 ) -> Tuple[MaterialProperties, TextureImages]:
     final_material_properties = {}
     texture_images = {}
+    normal_images = {}
 
     # Only keep the materials referenced in the obj.
     for material_name in material_names:
@@ -468,13 +477,24 @@ def _load_texture_images(
             else:
                 msg = f"Texture file does not exist: {path}"
                 warnings.warn(msg)
+        if material_name in normal_files:
+            path = os.path.join(data_dir, normal_files[material_name])
+            if path_manager.exists(path):
+                image = (
+                    _read_image(path, path_manager=path_manager, format="RGB") / 255.0
+                )
+                image = torch.from_numpy(image)
+                normal_images[material_name] = image
+            else:
+                msg = f"Normals file does not exist: {path}"
+                warnings.warn(msg)
 
         if material_name in material_properties:
             final_material_properties[material_name] = material_properties[
                 material_name
             ]
 
-    return final_material_properties, texture_images
+    return final_material_properties, texture_images, normal_images
 
 
 def load_mtl(
@@ -515,11 +535,12 @@ def load_mtl(
                     ...
                 }
     """
-    material_properties, texture_files = _parse_mtl(f, path_manager, device)
+    material_properties, texture_files, normal_files = _parse_mtl(f, path_manager, device)
     return _load_texture_images(
         material_names,
         data_dir,
         material_properties,
         texture_files,
+        normal_files,
         path_manager=path_manager,
     )

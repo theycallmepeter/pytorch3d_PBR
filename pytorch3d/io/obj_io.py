@@ -28,7 +28,7 @@ from .pluggable_formats import MeshFormatInterpreter, endswith
 # Faces & Aux type returned from load_obj function.
 _Faces = namedtuple("Faces", "verts_idx normals_idx textures_idx materials_idx")
 _Aux = namedtuple(
-    "Properties", "normals verts_uvs material_colors texture_images texture_atlas"
+    "Properties", "normals verts_uvs material_colors texture_images normal_images texture_atlas"
 )
 
 
@@ -236,6 +236,7 @@ def load_objs_as_meshes(
     files: list,
     device: Optional[Device] = None,
     load_textures: bool = True,
+    load_normals: bool = True,
     create_texture_atlas: bool = False,
     texture_atlas_size: int = 4,
     texture_wrap: Optional[str] = "repeat",
@@ -264,6 +265,7 @@ def load_objs_as_meshes(
         verts, faces, aux = load_obj(
             f_obj,
             load_textures=load_textures,
+            load_normals=load_normals,
             create_texture_atlas=create_texture_atlas,
             texture_atlas_size=texture_atlas_size,
             texture_wrap=texture_wrap,
@@ -284,8 +286,19 @@ def load_objs_as_meshes(
                     verts_uvs=[verts_uvs], faces_uvs=[faces_uvs], maps=image
                 )
 
+        nex = None
+        # NormalsUV type
+        nex_maps = aux.normal_images
+        if nex_maps is not None and len(nex_maps) > 0:
+                verts_uvs = aux.verts_uvs.to(device)  # (V, 2)
+                faces_uvs = faces.textures_idx.to(device)  # (F, 3)
+                image = list(nex_maps.values())[0].to(device)[None]
+                tex = TexturesUV(
+                    verts_uvs=[verts_uvs], faces_uvs=[faces_uvs], maps=image
+                )
+
         mesh = Meshes(
-            verts=[verts.to(device)], faces=[faces.verts_idx.to(device)], textures=tex
+            verts=[verts.to(device)], faces=[faces.verts_idx.to(device)], textures=tex, normalmaps=nex,
         )
         mesh_list.append(mesh)
     if len(mesh_list) == 1:
@@ -301,6 +314,7 @@ class MeshObjFormat(MeshFormatInterpreter):
         self,
         path: PathOrStr,
         include_textures: bool,
+        include_normals: bool,
         device: Device,
         path_manager: PathManager,
         create_texture_atlas: bool = False,
@@ -314,6 +328,7 @@ class MeshObjFormat(MeshFormatInterpreter):
             files=[path],
             device=device,
             load_textures=include_textures,
+            load_normals=include_normals,
             create_texture_atlas=create_texture_atlas,
             texture_atlas_size=texture_atlas_size,
             texture_wrap=texture_wrap,
@@ -524,7 +539,7 @@ def _load_materials(
         material_colors: dict of properties for each material.
         texture_images: dict of material names and texture images.
     """
-    if not load_textures:
+    if not (load_textures or load_normals):
         return None, None
 
     if not material_names or f is None:
@@ -655,6 +670,7 @@ def _load_obj(
         verts_uvs=verts_uvs if len(verts_uvs) else None,
         material_colors=material_colors,
         texture_images=texture_images,
+        normal_images=normal_images,
         texture_atlas=texture_atlas,
     )
     return verts, faces, aux

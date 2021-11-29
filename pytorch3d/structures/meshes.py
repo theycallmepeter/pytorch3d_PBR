@@ -217,6 +217,7 @@ class Meshes:
         verts=None,
         faces=None,
         textures=None,
+        normalmaps=None,
         *,
         verts_normals=None,
     ) -> None:
@@ -261,6 +262,12 @@ class Meshes:
             raise ValueError(msg % type(textures))
 
         self.textures = textures
+
+        if normalmaps is not None and not hasattr(normalmaps, "sample_textures"):
+            msg = "Expected textures to be an instance of type TexturesBase; got %r"
+            raise ValueError(msg % type(normalmaps))
+
+        self.normalmaps = normalmaps
 
         # Indicates whether the meshes in the list/batch have the same number
         # of faces and vertices.
@@ -439,6 +446,16 @@ class Meshes:
             self.textures._num_verts_per_mesh = self._num_verts_per_mesh.tolist()
             self.textures.valid = self.valid
 
+        if normalmaps is not None:
+            shape_ok = self.normalmaps.check_shapes(self._N, self._V, self._F)
+            if not shape_ok:
+                msg = "normalmaps do not match the dimensions of Meshes."
+                raise ValueError(msg)
+
+            self.normalmaps._num_faces_per_mesh = self._num_faces_per_mesh.tolist()
+            self.normalmaps._num_verts_per_mesh = self._num_verts_per_mesh.tolist()
+            self.normalmaps.valid = self.valid
+
         if verts_normals is not None:
             self._set_verts_normals(verts_normals)
 
@@ -502,11 +519,12 @@ class Meshes:
             raise IndexError(index)
 
         textures = None if self.textures is None else self.textures[index]
+        normalmaps = None if self.normalmaps is None else self.normalmaps[index]
 
         if torch.is_tensor(verts) and torch.is_tensor(faces):
-            return self.__class__(verts=[verts], faces=[faces], textures=textures)
+            return self.__class__(verts=[verts], faces=[faces], textures=textures, normalmaps=normalmaps)
         elif isinstance(verts, list) and isinstance(faces, list):
-            return self.__class__(verts=verts, faces=faces, textures=textures)
+            return self.__class__(verts=verts, faces=faces, textures=textures, normalmaps=normalmaps)
         else:
             raise ValueError("(verts, faces) not defined correctly")
 
@@ -1178,6 +1196,8 @@ class Meshes:
         # Textures is not a tensor but has a clone method
         if self.textures is not None:
             other.textures = self.textures.clone()
+        if self.normalmaps is not None:
+            other.normalmaps = self.normalmaps.clone()
         return other
 
     def detach(self):
@@ -1200,6 +1220,11 @@ class Meshes:
         # Textures is not a tensor but has a detach method
         if self.textures is not None:
             other.textures = self.textures.detach()
+
+        # normalmaps is not a tensor but has a detach method
+        if self.normalmaps is not None:
+            other.normalmaps = self.normalmaps.detach()
+
         return other
 
     def to(self, device: Device, copy: bool = False):
@@ -1235,6 +1260,8 @@ class Meshes:
                 setattr(other, k, v.to(device_))
         if self.textures is not None:
             other.textures = other.textures.to(device_)
+        if self.normalmaps is not None:
+            other.normalmaps = other.normalmaps.to(device_)
         return other
 
     def cpu(self):
@@ -1437,6 +1464,9 @@ class Meshes:
         # overwrite textures if any
         new.textures = self.textures
 
+        # overwrite normalmaps if any
+        new.normalmaps = self.normalmaps
+
         # copy auxiliary tensors
         copy_tensors = ["_num_verts_per_mesh", "_num_faces_per_mesh", "valid"]
 
@@ -1556,8 +1586,26 @@ class Meshes:
         else:
             raise ValueError("Meshes does not have textures")
 
+    def sample_normalmaps(self, fragments):
+        if self.normalmaps is not None:
 
-def join_meshes_as_batch(meshes: List[Meshes], include_textures: bool = True):
+            # Check dimensions of normal maps match that of meshes
+            shape_ok = self.normalmaps.check_shapes(self._N, self._V, self._F)
+            if not shape_ok:
+                msg = "normalmaps do not match the dimensions of Meshes."
+                raise ValueError(msg)
+
+            # Pass in faces packed. If the normal maps are defined per
+            # vertex, the face indices are needed in order to interpolate
+            # the vertex attributes across the face.
+            return self.normalmaps.sample_textures(
+                fragments, faces_packed=self.faces_packed()
+            )
+        else:
+            raise ValueError("Meshes does not have textures")
+
+
+def join_meshes_as_batch(meshes: List[Meshes], include_textures: bool = True, include_normals: bool = True,):
     """
     Merge multiple Meshes objects, i.e. concatenate the meshes objects. They
     must all be on the same device. If include_textures is true, they must all
@@ -1569,9 +1617,12 @@ def join_meshes_as_batch(meshes: List[Meshes], include_textures: bool = True):
     the same resolution. If they are TexturesUV then it includes having the same
     align_corners and padding_mode.
 
+    The above is also the case for normal maps.
+
     Args:
         meshes: list of meshes.
         include_textures: (bool) whether to try to join the textures.
+        include_normalmaps: (bool) whether to try to join the normal maps.
 
     Returns:
         new Meshes object containing all the meshes from all the inputs.
@@ -1582,31 +1633,53 @@ def join_meshes_as_batch(meshes: List[Meshes], include_textures: bool = True):
         raise ValueError("Wrong first argument to join_meshes_as_batch.")
     verts = [v for mesh in meshes for v in mesh.verts_list()]
     faces = [f for mesh in meshes for f in mesh.faces_list()]
-    if len(meshes) == 0 or not include_textures:
+    if len(meshes) == 0 or not (include_textures or include_normals):
         return Meshes(verts=verts, faces=faces)
 
-    if meshes[0].textures is None:
+    if meshes[0].textures is None and include_textures:
         if any(mesh.textures is not None for mesh in meshes):
             raise ValueError("Inconsistent textures in join_meshes_as_batch.")
         return Meshes(verts=verts, faces=faces)
 
-    if any(mesh.textures is None for mesh in meshes):
+    if meshes[0].normalmaps is None and include_normals:
+        if any(mesh.normalmaps is not None for mesh in meshes):
+            raise ValueError("Inconsistent normal maps in join_meshes_as_batch.")
+        return Meshes(verts=verts, faces=faces)
+
+    if any(mesh.textures is None for mesh in meshes) and include_textures:
         raise ValueError("Inconsistent textures in join_meshes_as_batch.")
 
+    if any(mesh.normalmaps is None for mesh in meshes) and include_normals:
+        raise ValueError("Inconsistent normal maps in join_meshes_as_batch.")
+
     # Now we know there are multiple meshes and they have textures to merge.
-    all_textures = [mesh.textures for mesh in meshes]
-    first = all_textures[0]
-    tex_types_same = all(type(tex) == type(first) for tex in all_textures)
+    if include_textures:
+        all_textures = [mesh.textures for mesh in meshes]
+        first = all_textures[0]
+        tex_types_same = all(type(tex) == type(first) for tex in all_textures)
+
+    if include_normals:
+        all_normalmaps = [mesh.normalmaps for mesh in meshes]
+        first_n = all_normalmaps[0]
+        norm_types_same = all(type(tex) == type(first) for tex in all_normalmaps)
 
     if not tex_types_same:
         raise ValueError("All meshes in the batch must have the same type of texture.")
 
-    tex = first.join_batch(all_textures[1:])
-    return Meshes(verts=verts, faces=faces, textures=tex)
+    if not norm_types_same:
+        raise ValueError("All meshes in the batch must have the same type of normal map.")
+
+    tex = None
+    nex = None
+    if include_textures:
+        tex = first.join_batch(all_textures[1:])
+    if include_normals:
+        nex = first_n.join_batch(all_normalmaps[1:])
+    return Meshes(verts=verts, faces=faces, textures=tex, normalmaps=nex)
 
 
 def join_meshes_as_scene(
-    meshes: Union[Meshes, List[Meshes]], include_textures: bool = True
+    meshes: Union[Meshes, List[Meshes]], include_textures: bool = True, include_normals: bool = True,
 ) -> Meshes:
     """
     Joins a batch of meshes in the form of a Meshes object or a list of Meshes
@@ -1626,6 +1699,7 @@ def join_meshes_as_scene(
         meshes: Meshes object that contains a batch of meshes, or a list of
                     Meshes objects.
         include_textures: (bool) whether to try to join the textures.
+        include_normals: (bool) whether to try to join the normals.
 
     Returns:
         new Meshes object containing a single mesh
@@ -1636,8 +1710,16 @@ def join_meshes_as_scene(
         raise ValueError(
             f"include_textures argument cannot be {type(include_textures)}"
         )
+
+    if not isinstance(include_normals, (bool, int)):
+        # We want to avoid letting join_meshes_as_scene(mesh1, mesh2) silently
+        # do the wrong thing.
+        raise ValueError(
+            f"include_normals argument cannot be {type(include_normals)}"
+        )
+
     if isinstance(meshes, List):
-        meshes = join_meshes_as_batch(meshes, include_textures=include_textures)
+        meshes = join_meshes_as_batch(meshes, include_textures=include_textures, include_normals=include_normals,)
 
     if len(meshes) == 1:
         return meshes
@@ -1645,9 +1727,13 @@ def join_meshes_as_scene(
     # Offset automatically done by faces_packed
     faces = meshes.faces_packed()  # (sum(F_n), 3)
     textures = None
+    normalmaps = None
 
     if include_textures and meshes.textures is not None:
         textures = meshes.textures.join_scene()
 
-    mesh = Meshes(verts=verts.unsqueeze(0), faces=faces.unsqueeze(0), textures=textures)
+    if include_normals and meshes.normalmaps is not None:
+        normalmaps = meshes.normalmaps.join_scene()
+
+    mesh = Meshes(verts=verts.unsqueeze(0), faces=faces.unsqueeze(0), textures=textures, normalmaps=normalmaps)
     return mesh
