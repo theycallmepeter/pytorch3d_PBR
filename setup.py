@@ -35,8 +35,8 @@ def get_existing_ccbin(nvcc_args: List[str]) -> Optional[str]:
 
 
 def get_extensions():
-    this_dir = os.path.dirname(os.path.abspath(__file__))
-    extensions_dir = os.path.join(this_dir, "pytorch3d", "csrc")
+    this_dir = os.path.dirname(os.path.relpath(__file__))
+    extensions_dir = ""#os.path.join(this_dir, "pytorch3d", "csrc")
     sources = glob.glob(os.path.join(extensions_dir, "**", "*.cpp"), recursive=True)
     source_cuda = glob.glob(os.path.join(extensions_dir, "**", "*.cu"), recursive=True)
     extension = CppExtension

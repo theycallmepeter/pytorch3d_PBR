@@ -74,6 +74,7 @@ def _format_faces_indices(faces_indices, max_index, device, pad_value=None):
 def load_obj(
     f,
     load_textures=True,
+    load_normals=True,
     create_texture_atlas: bool = False,
     texture_atlas_size: int = 4,
     texture_wrap: Optional[str] = "repeat",
@@ -222,6 +223,7 @@ def load_obj(
             f,
             data_dir=data_dir,
             load_textures=load_textures,
+            load_normals=load_normals,
             create_texture_atlas=create_texture_atlas,
             texture_atlas_size=texture_atlas_size,
             texture_wrap=texture_wrap,
@@ -503,6 +505,7 @@ def _load_materials(
     *,
     data_dir: str,
     load_textures: bool,
+    load_normals: bool,
     device: Device,
     path_manager: PathManager,
 ):
@@ -548,6 +551,7 @@ def _load_obj(
     *,
     data_dir,
     load_textures: bool = True,
+    load_normals: bool = True,
     create_texture_atlas: bool = False,
     texture_atlas_size: int = 4,
     texture_wrap: Optional[str] = "repeat",
@@ -609,11 +613,12 @@ def _load_obj(
         )
 
     texture_atlas = None
-    material_colors, texture_images = _load_materials(
+    material_colors, texture_images, normal_images = _load_materials(
         material_names,
         mtl_path,
         data_dir=data_dir,
         load_textures=load_textures,
+        load_normals=load_normals,
         path_manager=path_manager,
         device=device,
     )
