@@ -447,7 +447,6 @@ def _parse_mtl(
                 ns = np.array(tokens[1:4]).astype(np.float32)
                 ns = torch.from_numpy(ns).to(device)
                 material_properties[material_name]["shininess"] = ns
-
     return material_properties, texture_files, normal_files
 
 

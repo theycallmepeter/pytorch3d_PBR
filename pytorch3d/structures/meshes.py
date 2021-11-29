@@ -1602,7 +1602,7 @@ class Meshes:
                 fragments, faces_packed=self.faces_packed()
             )
         else:
-            raise ValueError("Meshes does not have textures")
+            raise ValueError("Meshes does not have normalmaps")
 
 
 def join_meshes_as_batch(meshes: List[Meshes], include_textures: bool = True, include_normals: bool = True,):

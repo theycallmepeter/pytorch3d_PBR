@@ -293,7 +293,7 @@ def load_objs_as_meshes(
                 verts_uvs = aux.verts_uvs.to(device)  # (V, 2)
                 faces_uvs = faces.textures_idx.to(device)  # (F, 3)
                 image = list(nex_maps.values())[0].to(device)[None]
-                tex = TexturesUV(
+                nex = TexturesUV(
                     verts_uvs=[verts_uvs], faces_uvs=[faces_uvs], maps=image
                 )
 
