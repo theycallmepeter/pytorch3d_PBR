@@ -5,7 +5,7 @@ dist/
 *-checkpoint.ipynb
 **/.ipynb_checkpoints
 **/.ipynb_checkpoints/**
-
+.gitignore
 
 # Docusaurus site
 website/yarn.lock
@@ -19,3 +19,10 @@ website/_tutorials/
 website/static/files/
 website/pages/tutorials/*
 !website/pages/tutorials/index.js
+
+# For my project
+.github/*
+.circleci/*
+.flake8
+.clang-format
+*.png
