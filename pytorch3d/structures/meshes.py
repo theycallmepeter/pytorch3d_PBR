@@ -1566,7 +1566,11 @@ class Meshes:
         if self.textures is not None:
             tex = self.textures.extend(N)
 
-        return self.__class__(verts=new_verts_list, faces=new_faces_list, textures=tex)
+        norm = None
+        if self.normalmaps is not None:
+            norm = self.normalmaps.extend(N)
+
+        return self.__class__(verts=new_verts_list, faces=new_faces_list, textures=tex, normalmaps=norm)
 
     def sample_textures(self, fragments):
         if self.textures is not None:
