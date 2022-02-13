@@ -22,6 +22,7 @@ from .shader import (
     HardPhongShader,
     SoftGouraudShader,
     SoftPhongShader,
+    NormalSoftPhongShader,
     SoftSilhouetteShader,
 )
 from .shading import gouraud_shading, phong_shading

@@ -5,7 +5,8 @@ dist/
 *-checkpoint.ipynb
 **/.ipynb_checkpoints
 **/.ipynb_checkpoints/**
-.gitignore
+.*
+!.gitignore
 
 # Docusaurus site
 website/yarn.lock

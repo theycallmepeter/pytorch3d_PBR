@@ -93,6 +93,45 @@ def phong_shading(
     colors = (ambient + diffuse) * texels + specular
     return colors
 
+def phong_shading_w_normalmap(
+    meshes, fragments, lights, cameras, materials, texels, pixel_normals
+) -> torch.Tensor:
+    """
+    Apply per pixel shading using pre-baked normal maps.
+    Compute the illumination for each pixel.
+    The pixel color is obtained by multiplying the pixel textures by the ambient
+    and diffuse illumination and adding the specular component.
+
+    Args:
+        meshes: Batch of meshes
+        fragments: Fragments named tuple with the outputs of rasterization
+        lights: Lights class containing a batch of lights
+        cameras: Cameras class containing a batch of cameras
+        materials: Materials class containing a batch of material properties
+        texels: texture per pixel of shape (N, H, W, K, 3)
+        pixel_normals: sampled normals from a normal map
+
+    Returns:
+        colors: (N, H, W, K, 3)
+    """
+    verts = meshes.verts_packed()  # (V, 3)
+    faces = meshes.faces_packed()  # (F, 3)
+    # vertex_normals = meshes.verts_normals_packed()  # (V, 3)
+    faces_verts = verts[faces]
+    # faces_normals = vertex_normals[faces]
+    pixel_coords = interpolate_face_attributes(
+        fragments.pix_to_face, fragments.bary_coords, faces_verts
+    )
+    
+    # pixel_normals = interpolate_face_attributes(
+        # fragments.pix_to_face, fragments.bary_coords, faces_normals
+    # )
+    ambient, diffuse, specular = _apply_lighting(
+        pixel_coords, pixel_normals, lights, cameras, materials
+    )
+    colors = (ambient + diffuse) * texels + specular
+    return colors
+
 
 def gouraud_shading(meshes, fragments, lights, cameras, materials) -> torch.Tensor:
     """
