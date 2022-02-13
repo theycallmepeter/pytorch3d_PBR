@@ -14,7 +14,6 @@ website/build/
 website/i18n/
 website/node_modules/*
 website/npm-debug.log
-
 ## Generated for tutorials
 website/_tutorials/
 website/static/files/
@@ -27,3 +26,6 @@ website/pages/tutorials/*
 .flake8
 .clang-format
 *.png
+
+# Build libs
+pytorch3d/_C*
