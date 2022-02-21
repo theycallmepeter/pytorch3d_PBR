@@ -456,7 +456,8 @@ class NormalSoftPhongShader(nn.Module):
             raise ValueError(msg)
 
         texels = meshes.sample_textures(fragments)
-        mapped_normals = meshes.sample_normalmaps(fragments)
+        # Sample normals and convert back into vectors from RGB values
+        mapped_normals = meshes.sample_normalmaps(fragments) * 2 - 1
         lights = kwargs.get("lights", self.lights)
         materials = kwargs.get("materials", self.materials)
         blend_params = kwargs.get("blend_params", self.blend_params)
