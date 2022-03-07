@@ -12,7 +12,6 @@ from .camera_conversions import (
 )
 from .ico_sphere import ico_sphere
 from .torus import torus
-from .tbn_matrices import tbn_matrices
 
 
 __all__ = [k for k in globals().keys() if not k.startswith("_")]

@@ -28,6 +28,6 @@ from .shader import (
 from .shading import gouraud_shading, phong_shading
 from .textures import Textures  # DEPRECATED
 from .textures import TexturesAtlas, TexturesBase, TexturesUV, TexturesVertex
-
+from .utils import tbn_matrices
 
 __all__ = [k for k in globals().keys() if not k.startswith("_")]
