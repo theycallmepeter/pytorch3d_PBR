@@ -411,8 +411,8 @@ class SoftSilhouetteShader(nn.Module):
 
 class NormalSoftPhongShader(nn.Module):
     """
-    Per pixel lighting - the lighting model is applied using the interpolated
-    coordinates and normals for each pixel. The blending function returns the
+    Per pixel lighting - the lighting model is applied using sampled normals
+    from a normal map for each pixel. The blending function returns the
     soft aggregated color using all the faces per pixel.
 
     To use the default values, simply initialize the shader with the desired
@@ -430,6 +430,7 @@ class NormalSoftPhongShader(nn.Module):
         lights: Optional[TensorProperties] = None,
         materials: Optional[Materials] = None,
         blend_params: Optional[BlendParams] = None,
+        tangent_matrices: Optional[TensorProperties] = None
     ) -> None:
         super().__init__()
         self.lights = lights if lights is not None else PointLights(device=device)
@@ -438,6 +439,7 @@ class NormalSoftPhongShader(nn.Module):
         )
         self.cameras = cameras
         self.blend_params = blend_params if blend_params is not None else BlendParams()
+        self.tangent_matrices = tangent_matrices
 
     def to(self, device: Device):
         # Manually move to device modules which are not subclasses of nn.Module
@@ -446,6 +448,7 @@ class NormalSoftPhongShader(nn.Module):
             self.cameras = cameras.to(device)
         self.materials = self.materials.to(device)
         self.lights = self.lights.to(device)
+        self.tangent_matrices = self.tangent_matrices.to(device)
         return self
 
     def forward(self, fragments: Fragments, meshes: Meshes, **kwargs) -> torch.Tensor:
@@ -456,11 +459,14 @@ class NormalSoftPhongShader(nn.Module):
             raise ValueError(msg)
 
         texels = meshes.sample_textures(fragments)
-        # Sample normals and convert back into vectors from RGB values
-        mapped_normals = meshes.sample_normalmaps(fragments) * 2 - 1
+
+        # Sample normal map
+        mapped_normals = meshes.sample_normalmaps(fragments)
+        
         lights = kwargs.get("lights", self.lights)
         materials = kwargs.get("materials", self.materials)
         blend_params = kwargs.get("blend_params", self.blend_params)
+        tangent_matrices = kwargs.get("tangent_matrices", self.tangent_matrices)
         colors = phong_shading_w_normalmap(
             meshes=meshes,
             fragments=fragments,
@@ -468,7 +474,8 @@ class NormalSoftPhongShader(nn.Module):
             lights=lights,
             cameras=cameras,
             materials=materials,
-            pixel_normals=mapped_normals
+            pixel_normals=mapped_normals,
+            tangent_matrices=tangent_matrices,
         )
         znear = kwargs.get("znear", getattr(cameras, "znear", 1.0))
         zfar = kwargs.get("zfar", getattr(cameras, "zfar", 100.0))
