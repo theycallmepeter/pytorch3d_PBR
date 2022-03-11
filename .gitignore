@@ -26,6 +26,7 @@ website/pages/tutorials/*
 .flake8
 .clang-format
 *.png
+**/ShapeNetsamples/*
 
 # Build libs
 pytorch3d/_C*
