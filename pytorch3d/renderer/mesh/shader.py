@@ -430,7 +430,8 @@ class NormalSoftPhongShader(nn.Module):
         lights: Optional[TensorProperties] = None,
         materials: Optional[Materials] = None,
         blend_params: Optional[BlendParams] = None,
-        tangent_matrices: Optional[TensorProperties] = None
+        tangent_matrices: Optional[torch.Tensor] = None,
+        normals_hook: Optional[torch.Tensor] = None,
     ) -> None:
         super().__init__()
         self.lights = lights if lights is not None else PointLights(device=device)
@@ -462,7 +463,8 @@ class NormalSoftPhongShader(nn.Module):
 
         # Sample normal map
         mapped_normals = meshes.sample_normalmaps(fragments)
-        
+        if normals_hook is not None:
+            normals_hook = mapped_normals
         lights = kwargs.get("lights", self.lights)
         materials = kwargs.get("materials", self.materials)
         blend_params = kwargs.get("blend_params", self.blend_params)
